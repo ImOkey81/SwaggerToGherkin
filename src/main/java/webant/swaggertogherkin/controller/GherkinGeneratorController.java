@@ -51,7 +51,7 @@ public class GherkinGeneratorController {
             );
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(new TestGenerationResponse("Error: " + e.getMessage(), null, null));
         }
     }
 

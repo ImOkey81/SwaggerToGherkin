@@ -1,8 +1,19 @@
 ### Микросервис преобразования swagger в gherkin
 ## Запуск:
+
+### Linux/macOS (bash)
 ```
-docker build -t swagger_to_gherkin .
-docker run swagger_to_gherkin
+docker build --no-cache -t swagger_to_gherkin .
+docker rm -f swagger_to_gherkin 2>/dev/null || true
+docker run --rm --name swagger_to_gherkin -p 8082:8082 swagger_to_gherkin
+```
+
+### Windows PowerShell
+```
+docker build --no-cache -t swagger_to_gherkin .
+docker rm -f swagger_to_gherkin
+if ($LASTEXITCODE -ne 0) { Write-Host "container not found, continue" }
+docker run --rm --name swagger_to_gherkin -p 8082:8082 swagger_to_gherkin
 ```
 ## Пример запроса:
 ```

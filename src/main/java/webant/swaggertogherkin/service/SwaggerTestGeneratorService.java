@@ -1,5 +1,6 @@
 package webant.swaggertogherkin.service;
 
+import io.swagger.codegen.v3.cli.SwaggerCodegen;
 import org.springframework.stereotype.Service;
 import webant.swaggertogherkin.dto.GitHubRequest;
 import webant.swaggertogherkin.util.GitHubContentFetcher;
@@ -126,19 +127,12 @@ public class SwaggerTestGeneratorService {
     private String generateTests(File swaggerFile, String language) throws Exception {
         String outputDir = Files.createTempDirectory("swagger-tests").toString();
 
-        ProcessBuilder builder = new ProcessBuilder(
-                "swagger-codegen", "generate",
+        SwaggerCodegen.main(new String[]{
+                "generate",
                 "-i", swaggerFile.getAbsolutePath(),
                 "-l", language,
                 "-o", outputDir
-        );
-
-        Process process = builder.start();
-        int exitCode = process.waitFor();
-
-        if (exitCode != 0) {
-            throw new RuntimeException("swagger-codegen failed with exit code: " + exitCode);
-        }
+        });
 
         return outputDir;
     }
