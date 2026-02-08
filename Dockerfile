@@ -10,6 +10,13 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL -o /opt/swagger-codegen-cli.jar \
+    https://repo1.maven.org/maven2/io/swagger/codegen/v3/swagger-codegen-cli/3.0.46/swagger-codegen-cli-3.0.46.jar
+
 COPY --from=builder /app/build/libs/*.jar app.jar
 
 ENV SPRING_APPLICATION_NAME=WebAntSwaggerToGherkin
