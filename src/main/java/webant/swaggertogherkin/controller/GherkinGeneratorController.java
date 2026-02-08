@@ -2,6 +2,11 @@ package webant.swaggertogherkin.controller;
 
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ContentDisposition;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,6 +43,23 @@ public class GherkinGeneratorController {
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/generated-tests")
+    public ResponseEntity<byte[]> downloadGeneratedTests(@RequestParam String outputDir) {
+        try {
+            byte[] archive = testGeneratorService.getGeneratedTestsArchive(outputDir);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDisposition(ContentDisposition.attachment().filename("generated-tests.zip").build());
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(archive);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 }
