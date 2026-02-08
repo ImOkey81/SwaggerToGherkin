@@ -9,9 +9,6 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -52,6 +49,29 @@ public class SwaggerTestGeneratorService {
         if (!Files.exists(outputPath) || !Files.isDirectory(outputPath)) {
             generatedTests.remove(generationId);
             throw new IllegalArgumentException("Generated tests directory not found for id: " + generationId);
+        }
+
+        Path archivePath = Files.createTempFile("swagger-tests", ".zip");
+
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(Files.newOutputStream(archivePath))) {
+            zipDirectory(outputPath, outputPath, zipOutputStream);
+        }
+
+        byte[] zipContent = Files.readAllBytes(archivePath);
+        Files.deleteIfExists(archivePath);
+        return zipContent;
+    }
+
+    public byte[] getGeneratedTestsArchive(String outputDir) throws IOException {
+        Path outputPath = Path.of(outputDir).toAbsolutePath().normalize();
+
+        if (!Files.exists(outputPath) || !Files.isDirectory(outputPath)) {
+            throw new IllegalArgumentException("Generated tests directory not found: " + outputDir);
+        }
+
+        Path tempDir = Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize();
+        if (!outputPath.startsWith(tempDir)) {
+            throw new IllegalArgumentException("Access denied for directory: " + outputDir);
         }
 
         Path archivePath = Files.createTempFile("swagger-tests", ".zip");
