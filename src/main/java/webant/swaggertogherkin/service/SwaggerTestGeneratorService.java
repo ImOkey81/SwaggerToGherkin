@@ -5,8 +5,12 @@ import webant.swaggertogherkin.dto.GitHubRequest;
 import webant.swaggertogherkin.util.GitHubContentFetcher;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 public class SwaggerTestGeneratorService {
@@ -32,6 +36,29 @@ public class SwaggerTestGeneratorService {
         return "Tests generated in: " + outputDir;
     }
 
+    public byte[] getGeneratedTestsArchive(String outputDir) throws IOException {
+        Path outputPath = Path.of(outputDir).toAbsolutePath().normalize();
+
+        if (!Files.exists(outputPath) || !Files.isDirectory(outputPath)) {
+            throw new IllegalArgumentException("Generated tests directory not found: " + outputDir);
+        }
+
+        Path tempDir = Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize();
+        if (!outputPath.startsWith(tempDir)) {
+            throw new IllegalArgumentException("Access denied for directory: " + outputDir);
+        }
+
+        Path archivePath = Files.createTempFile("swagger-tests", ".zip");
+
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(Files.newOutputStream(archivePath))) {
+            zipDirectory(outputPath, outputPath, zipOutputStream);
+        }
+
+        byte[] zipContent = Files.readAllBytes(archivePath);
+        Files.deleteIfExists(archivePath);
+        return zipContent;
+    }
+
     private String generateTests(File swaggerFile, String language) throws Exception {
         String outputDir = Files.createTempDirectory("swagger-tests").toString();
 
@@ -50,5 +77,21 @@ public class SwaggerTestGeneratorService {
         }
 
         return outputDir;
+    }
+
+    private void zipDirectory(Path rootPath, Path currentPath, ZipOutputStream zipOutputStream) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(currentPath)) {
+            for (Path path : stream) {
+                if (Files.isDirectory(path)) {
+                    zipDirectory(rootPath, path, zipOutputStream);
+                } else {
+                    String entryName = rootPath.relativize(path).toString();
+                    zipOutputStream.putNextEntry(new ZipEntry(entryName));
+
+                    Files.copy(path, zipOutputStream);
+                    zipOutputStream.closeEntry();
+                }
+            }
+        }
     }
 }
