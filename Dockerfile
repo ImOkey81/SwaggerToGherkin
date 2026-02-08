@@ -19,6 +19,11 @@ RUN curl -fsSL -o /opt/swagger-codegen-cli.jar \
 
 COPY --from=builder /app/build/libs/*.jar app.jar
 
+RUN if jar tf app.jar | grep -q "BOOT-INF/lib/swagger-codegen-cli"; then \
+      echo "ERROR: swagger-codegen-cli must not be bundled into app.jar"; \
+      exit 1; \
+    fi
+
 ENV SPRING_APPLICATION_NAME=WebAntSwaggerToGherkin
 ENV SERVER_PORT=8082
 
