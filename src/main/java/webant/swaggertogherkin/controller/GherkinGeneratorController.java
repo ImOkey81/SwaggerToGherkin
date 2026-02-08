@@ -40,7 +40,7 @@ public class GherkinGeneratorController {
         }
     }
 
-    @PostMapping("/generate-tests")
+    @PostMapping(value = "/generate-tests", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<TestGenerationResponse> generateTests(@RequestBody GitHubRequest request) {
         try {
             String generationId = testGeneratorService.generateTestsFromGitHub(request);
