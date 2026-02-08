@@ -49,3 +49,47 @@ Feature: Получить питомца по ID
     Then the response status should be 200
     And the response should contain expected data
 ```
+
+## Генерация тестов и получение результата по ID
+
+### 1) Сгенерировать тесты
+```
+curl --location 'http://localhost:8082/generate-tests' \
+--header 'Content-Type: application/json' \
+--data '{
+  "repoUrl": "https://github.com/ImOkey81/SwaggerToGherkin/blob/main/swagger.yaml",
+  "filePath": "swagger.yaml",
+  "language": "java"
+}'
+```
+
+Пример ответа:
+```
+{
+  "message": "Tests generated successfully",
+  "generationId": "7d8f7c5a-4f85-4f8d-8f5a-0c2f7f4d95a9",
+  "downloadPath": "/generated-tests/7d8f7c5a-4f85-4f8d-8f5a-0c2f7f4d95a9"
+}
+```
+
+### 2) Получить список файлов для generationId
+```
+curl --location 'http://localhost:8082/generated-tests/7d8f7c5a-4f85-4f8d-8f5a-0c2f7f4d95a9/files'
+```
+
+### 3) Получить содержимое конкретного файла (inline)
+```
+curl --location 'http://localhost:8082/generated-tests/7d8f7c5a-4f85-4f8d-8f5a-0c2f7f4d95a9/file?path=README.md'
+```
+
+### 4) Скачать конкретный файл
+```
+curl --location 'http://localhost:8082/generated-tests/7d8f7c5a-4f85-4f8d-8f5a-0c2f7f4d95a9/file?path=README.md&download=true' \
+--output README.md
+```
+
+### 5) Скачать весь архив по ID
+```
+curl --location 'http://localhost:8082/generated-tests/7d8f7c5a-4f85-4f8d-8f5a-0c2f7f4d95a9' \
+--output generated-tests.zip
+```

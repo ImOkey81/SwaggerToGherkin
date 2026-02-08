@@ -9,6 +9,11 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -41,15 +46,7 @@ public class SwaggerTestGeneratorService {
     }
 
     public byte[] getGeneratedTestsArchiveById(String generationId) throws IOException {
-        Path outputPath = generatedTests.get(generationId);
-        if (outputPath == null) {
-            throw new IllegalArgumentException("Generation id not found: " + generationId);
-        }
-
-        if (!Files.exists(outputPath) || !Files.isDirectory(outputPath)) {
-            generatedTests.remove(generationId);
-            throw new IllegalArgumentException("Generated tests directory not found for id: " + generationId);
-        }
+        Path outputPath = resolveOutputPathByGenerationId(generationId);
 
         Path archivePath = Files.createTempFile("swagger-tests", ".zip");
 
@@ -83,6 +80,47 @@ public class SwaggerTestGeneratorService {
         byte[] zipContent = Files.readAllBytes(archivePath);
         Files.deleteIfExists(archivePath);
         return zipContent;
+    }
+
+    public List<String> getGeneratedFilesById(String generationId) throws IOException {
+        Path outputPath = resolveOutputPathByGenerationId(generationId);
+
+        try (Stream<Path> paths = Files.walk(outputPath)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .map(path -> outputPath.relativize(path).toString())
+                    .sorted()
+                    .toList();
+        }
+    }
+
+    public byte[] getGeneratedFileContentById(String generationId, String filePath) throws IOException {
+        Path outputPath = resolveOutputPathByGenerationId(generationId);
+        Path resolvedFilePath = outputPath.resolve(filePath).normalize();
+
+        if (!resolvedFilePath.startsWith(outputPath)) {
+            throw new IllegalArgumentException("Access denied for file path: " + filePath);
+        }
+
+        if (!Files.exists(resolvedFilePath) || !Files.isRegularFile(resolvedFilePath)) {
+            throw new IllegalArgumentException("Generated file not found: " + filePath);
+        }
+
+        return Files.readAllBytes(resolvedFilePath);
+    }
+
+    private Path resolveOutputPathByGenerationId(String generationId) {
+        Path outputPath = generatedTests.get(generationId);
+        if (outputPath == null) {
+            throw new IllegalArgumentException("Generation id not found: " + generationId);
+        }
+
+        if (!Files.exists(outputPath) || !Files.isDirectory(outputPath)) {
+            generatedTests.remove(generationId);
+            throw new IllegalArgumentException("Generated tests directory not found for id: " + generationId);
+        }
+
+        return outputPath;
     }
 
     private String generateTests(File swaggerFile, String language) throws Exception {
