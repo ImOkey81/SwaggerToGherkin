@@ -5,13 +5,20 @@ import webant.swaggertogherkin.dto.GitHubRequest;
 import webant.swaggertogherkin.util.GitHubContentFetcher;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 public class SwaggerTestGeneratorService {
 
     private final GitHubContentFetcher contentFetcher;
+    private final ConcurrentHashMap<String, Path> generatedTests = new ConcurrentHashMap<>();
 
     public SwaggerTestGeneratorService(GitHubContentFetcher contentFetcher) {
         this.contentFetcher = contentFetcher;
@@ -28,8 +35,40 @@ public class SwaggerTestGeneratorService {
         // 3. Generate tests using swagger-codegen
         String outputDir = generateTests(tempFile.toFile(), request.getLanguage());
 
-        // 4. Read generated tests
-        return "Tests generated in: " + outputDir;
+        // 4. Save generation id -> output directory mapping
+        String generationId = UUID.randomUUID().toString();
+        generatedTests.put(generationId, Path.of(outputDir).toAbsolutePath().normalize());
+
+        return generationId;
+    }
+
+
+    public byte[] getGeneratedTestsArchiveById(String generationId) throws IOException {
+        Path outputPath = generatedTests.get(generationId);
+        if (outputPath == null) {
+            throw new IllegalArgumentException("Generation id not found: " + generationId);
+        }
+
+        if (!Files.exists(outputPath) || !Files.isDirectory(outputPath)) {
+            generatedTests.remove(generationId);
+            throw new IllegalArgumentException("Generated tests directory not found for id: " + generationId);
+        }
+
+        byte[] zipContent = createArchiveFromDirectory(outputPath);
+        generatedTests.remove(generationId);
+        return zipContent;
+    }
+
+    private byte[] createArchiveFromDirectory(Path outputPath) throws IOException {
+        Path archivePath = Files.createTempFile("swagger-tests", ".zip");
+
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(Files.newOutputStream(archivePath))) {
+            zipDirectory(outputPath, outputPath, zipOutputStream);
+        }
+
+        byte[] zipContent = Files.readAllBytes(archivePath);
+        Files.deleteIfExists(archivePath);
+        return zipContent;
     }
 
     private String generateTests(File swaggerFile, String language) throws Exception {
@@ -50,5 +89,21 @@ public class SwaggerTestGeneratorService {
         }
 
         return outputDir;
+    }
+
+    private void zipDirectory(Path rootPath, Path currentPath, ZipOutputStream zipOutputStream) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(currentPath)) {
+            for (Path path : stream) {
+                if (Files.isDirectory(path)) {
+                    zipDirectory(rootPath, path, zipOutputStream);
+                } else {
+                    String entryName = rootPath.relativize(path).toString();
+                    zipOutputStream.putNextEntry(new ZipEntry(entryName));
+
+                    Files.copy(path, zipOutputStream);
+                    zipOutputStream.closeEntry();
+                }
+            }
+        }
     }
 }
