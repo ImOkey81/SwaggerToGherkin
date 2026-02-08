@@ -48,32 +48,6 @@ paths:
                 $ref: '#/components/schemas/TestGenerationResponse'
         '400':
           description: Invalid input or processing error
-  /generated-tests:
-    get:
-      summary: Download generated tests by output directory (legacy compatibility)
-      operationId: downloadGeneratedTestsByOutputDir
-      parameters:
-        - name: outputDir
-          in: query
-          required: true
-          schema:
-            type: string
-          description: Temporary output directory returned by legacy POST /generate-tests response.
-      responses:
-        '200':
-          description: Zip archive with generated tests
-          headers:
-            Content-Disposition:
-              description: Attachment filename for zip archive
-              schema:
-                type: string
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          description: Unknown output directory or archive creation error
   /generated-tests/{generationId}:
     get:
       summary: Download generated tests as zip archive
@@ -125,17 +99,12 @@ components:
       type: object
       required:
         - message
-        - id
         - generationId
         - downloadPath
       properties:
         message:
           type: string
           example: Tests generated successfully
-        id:
-          type: string
-          description: Alias for generationId for easier client usage.
-          example: 123e4567-e89b-12d3-a456-426614174000
         generationId:
           type: string
           example: 123e4567-e89b-12d3-a456-426614174000

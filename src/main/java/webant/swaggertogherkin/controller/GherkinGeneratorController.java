@@ -4,8 +4,11 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ContentDisposition;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -52,12 +55,10 @@ public class GherkinGeneratorController {
         }
     }
 
-
-
-    @GetMapping("/generated-tests")
-    public ResponseEntity<byte[]> downloadGeneratedTestsByOutputDir(@RequestParam String outputDir) {
+    @GetMapping("/generated-tests/{generationId}")
+    public ResponseEntity<byte[]> downloadGeneratedTests(@PathVariable String generationId) {
         try {
-            byte[] archive = testGeneratorService.getGeneratedTestsArchiveByOutputDir(outputDir);
+            byte[] archive = testGeneratorService.getGeneratedTestsArchiveById(generationId);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
@@ -71,10 +72,10 @@ public class GherkinGeneratorController {
         }
     }
 
-    @GetMapping("/generated-tests/{generationId}")
-    public ResponseEntity<byte[]> downloadGeneratedTests(@PathVariable String generationId) {
+    @GetMapping("/generated-tests")
+    public ResponseEntity<byte[]> downloadGeneratedTests(@RequestParam String outputDir) {
         try {
-            byte[] archive = testGeneratorService.getGeneratedTestsArchiveById(generationId);
+            byte[] archive = testGeneratorService.getGeneratedTestsArchive(outputDir);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
