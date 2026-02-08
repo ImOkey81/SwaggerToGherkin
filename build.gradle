@@ -37,10 +37,10 @@ dependencies {
 		exclude group: 'ch.qos.logback'
 	}
 
-//	implementation('io.swagger.codegen.v3:swagger-codegen-cli:3.0.46') {
-//		exclude group: 'org.slf4j'
-//		exclude group: 'ch.qos.logback'
-//	}
+	implementation('io.swagger.codegen.v3:swagger-codegen-cli:3.0.46') {
+		exclude group: 'org.slf4j'
+		exclude group: 'ch.qos.logback'
+	}
 
 	// Явное добавление SLF4J и Logback
 //	implementation 'org.slf4j:slf4j-api:2.0.12'
