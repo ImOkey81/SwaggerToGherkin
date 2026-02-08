@@ -1,0 +1,144 @@
+openapi: 3.0.3
+info:
+  title: SwaggerToGherkin API
+  version: 1.0.0
+  description: API for generating Gherkin scenarios and client tests from Swagger/OpenAPI files stored in GitHub.
+servers:
+  - url: http://localhost:8082
+paths:
+  /generate-gherkin:
+    post:
+      summary: Generate Gherkin scenarios from OpenAPI file
+      operationId: generateGherkin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GitHubRequest'
+      responses:
+        '200':
+          description: Generated Gherkin text
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          description: Invalid input or processing error
+          content:
+            text/plain:
+              schema:
+                type: string
+  /generate-tests:
+    post:
+      summary: Generate API tests from OpenAPI file
+      operationId: generateTests
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GitHubRequest'
+      responses:
+        '200':
+          description: Tests generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestGenerationResponse'
+        '400':
+          description: Invalid input or processing error
+  /generated-tests:
+    get:
+      summary: Download generated tests by output directory (legacy compatibility)
+      operationId: downloadGeneratedTestsByOutputDir
+      parameters:
+        - name: outputDir
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Temporary output directory returned by legacy POST /generate-tests response.
+      responses:
+        '200':
+          description: Zip archive with generated tests
+          headers:
+            Content-Disposition:
+              description: Attachment filename for zip archive
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Unknown output directory or archive creation error
+  /generated-tests/{generationId}:
+    get:
+      summary: Download generated tests as zip archive
+      operationId: downloadGeneratedTests
+      parameters:
+        - name: generationId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID returned by POST /generate-tests
+      responses:
+        '200':
+          description: Zip archive with generated tests
+          headers:
+            Content-Disposition:
+              description: Attachment filename for zip archive
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Unknown generationId or archive creation error
+components:
+  schemas:
+    GitHubRequest:
+      type: object
+      required:
+        - repoUrl
+        - filePath
+        - language
+      properties:
+        repoUrl:
+          type: string
+          description: URL to GitHub file or repository source.
+          example: https://github.com/ImOkey81/SwaggerToGherkin/blob/main/swagger-to-gherkin-api.yaml
+        filePath:
+          type: string
+          description: Path to OpenAPI file within repository.
+          example: swagger-to-gherkin-api.yaml
+        language:
+          type: string
+          description: Target language for generated tests.
+          example: java
+    TestGenerationResponse:
+      type: object
+      required:
+        - message
+        - id
+        - generationId
+        - downloadPath
+      properties:
+        message:
+          type: string
+          example: Tests generated successfully
+        id:
+          type: string
+          description: Alias for generationId for easier client usage.
+          example: 123e4567-e89b-12d3-a456-426614174000
+        generationId:
+          type: string
+          example: 123e4567-e89b-12d3-a456-426614174000
+        downloadPath:
+          type: string
+          example: /generated-tests/123e4567-e89b-12d3-a456-426614174000
