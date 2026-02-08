@@ -1,0 +1,109 @@
+openapi: 3.0.3
+info:
+  title: SwaggerToGherkin API
+  version: 1.0.0
+  description: |
+    API для генерации Gherkin-сценариев и шаблонов тестов из Swagger/OpenAPI файла,
+    размещённого в GitHub.
+servers:
+  - url: http://localhost:8082
+    description: Local server
+paths:
+  /generate-gherkin:
+    post:
+      summary: Generate Gherkin from GitHub Swagger/OpenAPI
+      operationId: generateGherkin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GitHubRequest'
+            examples:
+              default:
+                summary: Пример запроса
+                value:
+                  repoUrl: https://github.com/SidereaH/WebAntSwaggerExample/blob/main/swaggerexmp.yaml
+                  filePath: examples/swaggerexmp.yaml
+      responses:
+        '200':
+          description: Gherkin content generated successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                sample:
+                  value: |
+                    # Generated Gherkin tests from Swagger/OpenAPI
+
+                    Feature: List all pets
+                      As an API user
+                      I want to execute GET /pets
+                      So that I can verify the API response
+
+                      Scenario: Successful GET request to /pets
+                        Given I have a valid API endpoint /pets
+                        When I send a GET request
+                        Then the response status should be 200
+                        And the response should contain expected data
+        '400':
+          description: Invalid request or generation error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Error: <message>"
+
+  /generate-tests:
+    post:
+      summary: Generate tests from GitHub Swagger/OpenAPI using swagger-codegen
+      operationId: generateTests
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GitHubRequest'
+            examples:
+              java:
+                summary: Генерация Java тестов
+                value:
+                  repoUrl: https://github.com/SidereaH/WebAntSwaggerExample/blob/main/swaggerexmp.yaml
+                  filePath: examples/swaggerexmp.yaml
+                  language: java
+      responses:
+        '200':
+          description: Path to generated tests
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Tests generated in: /tmp/swagger-tests123456789"
+        '400':
+          description: Invalid request or code generation error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Error: swagger-codegen failed with exit code: 1"
+
+components:
+  schemas:
+    GitHubRequest:
+      type: object
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          type: string
+          description: URL на swagger/openapi файл в GitHub (обычный URL с github.com/.../blob/...)
+          example: https://github.com/SidereaH/WebAntSwaggerExample/blob/main/swaggerexmp.yaml
+        filePath:
+          type: string
+          description: Путь к файлу в репозитории (передаётся в API для совместимости)
+          example: examples/swaggerexmp.yaml
+        language:
+          type: string
+          description: Язык генерации для /generate-tests
+          example: java
