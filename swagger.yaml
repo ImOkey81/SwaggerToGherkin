@@ -1,11 +1,33 @@
 openapi: 3.0.3
 info:
   title: SwaggerToGherkin API
-  version: 1.0.0
+  version: 1.1.0
   description: API for generating Gherkin scenarios and client tests from Swagger/OpenAPI files stored in GitHub.
 servers:
   - url: http://localhost:8082
 paths:
+  /health:
+    get:
+      summary: Service health check
+      operationId: health
+      responses:
+        '200':
+          description: Service is available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /supported-languages:
+    get:
+      summary: Get supported swagger-codegen languages
+      operationId: supportedLanguages
+      responses:
+        '200':
+          description: Supported target languages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportedLanguagesResponse'
   /generate-gherkin:
     post:
       summary: Generate Gherkin scenarios from OpenAPI file
@@ -18,17 +40,17 @@ paths:
               $ref: '#/components/schemas/GitHubRequest'
       responses:
         '200':
-          description: Generated Gherkin text
+          description: Generated Gherkin payload
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
+                $ref: '#/components/schemas/GherkinResponse'
         '400':
           description: Invalid input or processing error
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
+                $ref: '#/components/schemas/ApiErrorResponse'
   /generate-tests:
     post:
       summary: Generate API tests from OpenAPI file
@@ -48,6 +70,33 @@ paths:
                 $ref: '#/components/schemas/TestGenerationResponse'
         '400':
           description: Invalid input or processing error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /generated-tests/{generationId}/status:
+    get:
+      summary: Get generation status
+      operationId: getGenerationStatus
+      parameters:
+        - name: generationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current generation state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationStatusResponse'
+        '404':
+          description: Unknown generationId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /generated-tests/{generationId}:
     get:
       summary: Download generated tests as zip archive
@@ -73,7 +122,92 @@ paths:
                 type: string
                 format: binary
         '400':
-          description: Unknown generationId or archive creation error
+          description: Generation is not ready or failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '404':
+          description: Unknown generationId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /generated-tests/{generationId}/files:
+    get:
+      summary: List generated files
+      operationId: listGeneratedFiles
+      parameters:
+        - name: generationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Generated file list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '400':
+          description: Generation is not ready or failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '404':
+          description: Unknown generationId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /generated-tests/{generationId}/file:
+    get:
+      summary: Read or download a generated file
+      operationId: getGeneratedFile
+      parameters:
+        - name: generationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: download
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: File content
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path or generation is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '404':
+          description: File or generation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
 components:
   schemas:
     GitHubRequest:
@@ -81,33 +215,109 @@ components:
       required:
         - repoUrl
         - filePath
-        - language
       properties:
         repoUrl:
           type: string
-          description: URL to GitHub file or repository source.
-          example: https://github.com/ImOkey81/SwaggerToGherkin/blob/main/swagger-to-gherkin-api.yaml
+          description: URL to GitHub repository.
+          example: https://github.com/ImOkey81/SwaggerToGherkin
         filePath:
           type: string
           description: Path to OpenAPI file within repository.
           example: swagger-to-gherkin-api.yaml
         language:
           type: string
-          description: Target language for generated tests.
+          description: Target language for generated tests. Required for POST /generate-tests.
           example: java
+    GherkinResponse:
+      type: object
+      required:
+        - status
+        - gherkin
+      properties:
+        status:
+          type: string
+          example: success
+        gherkin:
+          type: string
+          example: "Feature: CRUD scenarios for users"
     TestGenerationResponse:
       type: object
       required:
         - message
         - generationId
         - downloadPath
+        - status
       properties:
         message:
           type: string
-          example: Tests generated successfully
+          example: Generation started
         generationId:
           type: string
           example: 123e4567-e89b-12d3-a456-426614174000
         downloadPath:
           type: string
           example: /generated-tests/123e4567-e89b-12d3-a456-426614174000
+        status:
+          type: string
+          example: PENDING
+    GenerationStatusResponse:
+      type: object
+      required:
+        - generationId
+        - status
+        - message
+      properties:
+        generationId:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, DONE, ERROR]
+        downloadPath:
+          type: string
+          nullable: true
+        message:
+          type: string
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          example: UP
+        service:
+          type: string
+          example: swagger-to-gherkin
+    SupportedLanguagesResponse:
+      type: object
+      required:
+        - languages
+      properties:
+        languages:
+          type: array
+          items:
+            type: string
+    ApiErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          $ref: '#/components/schemas/ApiErrorDetails'
+    ApiErrorDetails:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: INVALID_INPUT
+        message:
+          type: string
+          example: Swagger file not found

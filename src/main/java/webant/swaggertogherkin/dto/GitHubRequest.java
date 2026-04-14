@@ -1,12 +1,10 @@
 package webant.swaggertogherkin.dto;
-// GitHubRequest.java
 
 public class GitHubRequest {
     private String repoUrl;
     private String filePath;
-    private String language; // java, python, etc. for test generation
+    private String language;
 
-    // Getters and Setters
     public String getRepoUrl() { return repoUrl; }
     public void setRepoUrl(String repoUrl) { this.repoUrl = repoUrl; }
     public String getFilePath() { return filePath; }
