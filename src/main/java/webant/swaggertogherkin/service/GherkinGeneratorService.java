@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Service
@@ -50,25 +49,20 @@ public class GherkinGeneratorService {
     }
 
     private String generateGherkinFromOpenAPI(OpenAPI openAPI) {
-        CrudResource resource = findBestCrudResource(openAPI)
-                .orElseThrow(() -> new IllegalArgumentException("CRUD resource was not found in the OpenAPI specification"));
+        List<CrudResource> resources = collectResources(openAPI);
+        if (resources.isEmpty()) {
+            throw new IllegalArgumentException("OpenAPI specification does not contain supported operations");
+        }
 
         StringBuilder builder = new StringBuilder();
-        builder.append("Feature: CRUD scenarios for ").append(resource.displayName()).append('\n');
-        builder.append("  As an API user\n");
-        builder.append("  I want to validate create, read, update and delete operations for ")
-                .append(resource.displayName()).append('\n');
-        builder.append("  So that I can verify expected behaviour and error handling\n\n");
-
-        appendCreateScenario(builder, resource);
-        appendReadScenario(builder, resource);
-        appendUpdateScenario(builder, resource);
-        appendDeleteScenario(builder, resource);
+        for (CrudResource resource : resources) {
+            appendFeature(builder, resource);
+        }
 
         return builder.toString().trim();
     }
 
-    private Optional<CrudResource> findBestCrudResource(OpenAPI openAPI) {
+    private List<CrudResource> collectResources(OpenAPI openAPI) {
         Map<String, CrudResource> resources = new LinkedHashMap<>();
 
         openAPI.getPaths().forEach((path, pathItem) -> {
@@ -86,8 +80,25 @@ public class GherkinGeneratorService {
         });
 
         return resources.values().stream()
-                .filter(CrudResource::hasCrudCoverage)
-                .max(Comparator.comparingInt(CrudResource::score));
+                .filter(CrudResource::hasAnyOperation)
+                .sorted(Comparator.comparingInt(CrudResource::score).reversed())
+                .toList();
+    }
+
+    private void appendFeature(StringBuilder builder, CrudResource resource) {
+        if (builder.length() > 0) {
+            builder.append('\n').append('\n');
+        }
+
+        builder.append("Feature: API scenarios for ").append(resource.displayName()).append('\n');
+        builder.append("  As an API user\n");
+        builder.append("  I want to validate available operations for ").append(resource.displayName()).append('\n');
+        builder.append("  So that I can verify expected behaviour and error handling\n\n");
+
+        appendCreateScenario(builder, resource);
+        appendReadScenario(builder, resource);
+        appendUpdateScenario(builder, resource);
+        appendDeleteScenario(builder, resource);
     }
 
     private Operation chooseReadOperation(String path, PathItem pathItem) {
@@ -148,17 +159,23 @@ public class GherkinGeneratorService {
         builder.append("  Scenario: Read ").append(resource.singularName()).append(" successfully\n");
         builder.append("    Given the API endpoint ").append(read.path()).append(" is available\n");
         appendParameterSteps(builder, read.operation());
-        builder.append("    And an existing ").append(resource.singularName()).append(" record is present\n");
+        if (hasPathParameter(read.path())) {
+            builder.append("    And an existing ").append(resource.singularName()).append(" record is present\n");
+        } else {
+            builder.append("    And data is available for retrieval\n");
+        }
         builder.append("    When I send a ").append(read.method()).append(" request\n");
         builder.append("    Then the response status should be ").append(successStatus(read.operation(), 200)).append('\n');
         builder.append("    And the response should contain the requested ").append(resource.singularName()).append(" data\n\n");
 
-        builder.append("  Scenario: Return not found for missing ").append(resource.singularName()).append('\n');
-        builder.append("    Given the API endpoint ").append(read.path()).append(" is available\n");
-        builder.append("    And I use a non-existing ").append(resource.identifierName()).append('\n');
-        builder.append("    When I send a ").append(read.method()).append(" request\n");
-        builder.append("    Then the response status should be ").append(notFoundStatus(read.operation(), 404)).append('\n');
-        builder.append("    And the response should explain that the ").append(resource.singularName()).append(" was not found\n\n");
+        if (hasPathParameter(read.path())) {
+            builder.append("  Scenario: Return not found for missing ").append(resource.singularName()).append('\n');
+            builder.append("    Given the API endpoint ").append(read.path()).append(" is available\n");
+            builder.append("    And I use a non-existing ").append(resource.identifierName()).append('\n');
+            builder.append("    When I send a ").append(read.method()).append(" request\n");
+            builder.append("    Then the response status should be ").append(notFoundStatus(read.operation(), 404)).append('\n');
+            builder.append("    And the response should explain that the ").append(resource.singularName()).append(" was not found\n\n");
+        }
     }
 
     private void appendUpdateScenario(StringBuilder builder, CrudResource resource) {
@@ -334,11 +351,11 @@ public class GherkinGeneratorService {
                     .orElse(operations.getFirst());
         }
 
-        private boolean hasCrudCoverage() {
+        private boolean hasAnyOperation() {
             return operation(OperationKind.CREATE) != null
-                    && operation(OperationKind.READ) != null
-                    && operation(OperationKind.UPDATE) != null
-                    && operation(OperationKind.DELETE) != null;
+                    || operation(OperationKind.READ) != null
+                    || operation(OperationKind.UPDATE) != null
+                    || operation(OperationKind.DELETE) != null;
         }
 
         private int score() {

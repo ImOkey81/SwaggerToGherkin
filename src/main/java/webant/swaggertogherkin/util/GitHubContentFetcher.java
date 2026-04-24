@@ -11,12 +11,12 @@ public class GitHubContentFetcher {
     private static final String RAW_GITHUB_HOST = "raw.githubusercontent.com";
 
     public String fetchContent(String repoUrl, String filePath) {
-        String rawUrl = buildRawUrl(repoUrl, filePath);
+        String rawUrl = resolveRawFileUrl(repoUrl, filePath);
         RestTemplate restTemplate = new RestTemplate();
         return restTemplate.getForObject(rawUrl, String.class);
     }
 
-    String buildRawUrl(String repoUrl, String filePath) {
+    String resolveRawFileUrl(String repoUrl, String filePath) {
         if (repoUrl == null || repoUrl.isBlank()) {
             throw new IllegalArgumentException("repoUrl is required");
         }
@@ -59,11 +59,15 @@ public class GitHubContentFetcher {
             return buildRawUrlForRepositoryRoot(owner, repo, filePath);
         }
 
-        if (parts.length >= 5 && "blob".equals(parts[2])) {
+        if (parts.length >= 5 && "blob".equalsIgnoreCase(parts[2])) {
             return "https://raw.githubusercontent.com/" + owner + "/" + repo + "/" + join(parts, 3);
         }
 
         throw new IllegalArgumentException("unsupported repoUrl format");
+    }
+
+    String buildRawUrl(String repoUrl, String filePath) {
+        return resolveRawFileUrl(repoUrl, filePath);
     }
 
     private String normalizeRawUrl(URI uri) {

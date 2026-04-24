@@ -3,11 +3,13 @@ package webant.swaggertogherkin.controller;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.HttpClientErrorException;
+import webant.swaggertogherkin.config.ApiCorsConfig;
 import webant.swaggertogherkin.dto.ArtifactResponse;
 import webant.swaggertogherkin.dto.GenerationStatusResponse;
 import webant.swaggertogherkin.dto.JobDetailsResponse;
@@ -27,11 +29,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(GherkinGeneratorController.class)
+@Import(ApiCorsConfig.class)
 class GherkinGeneratorControllerTest {
 
     @Autowired
@@ -67,6 +72,16 @@ class GherkinGeneratorControllerTest {
                 .andExpect(jsonPath("$.generationId").value("abc-123"))
                 .andExpect(jsonPath("$.downloadPath").value("/generated-tests/abc-123"))
                 .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    void generateTestsAcceptsCorsPreflight() throws Exception {
+        mockMvc.perform(options("/generate-tests")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
+                .andExpect(header().string("Access-Control-Allow-Methods", org.hamcrest.Matchers.containsString("POST")));
     }
 
     @Test
@@ -145,6 +160,37 @@ class GherkinGeneratorControllerTest {
     @Test
     void generateGherkinRejectsUnsupportedMediaType() throws Exception {
         mockMvc.perform(post("/generate-gherkin")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("repoUrl=https://github.com/example/repo/blob/main/openapi.yaml"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.error.message").value("Content-Type must be application/json"));
+    }
+
+    @Test
+    void generateTestsReturnsBadRequestForMissingRemoteFile() throws Exception {
+        when(swaggerTestGeneratorService.generateTestsFromGitHub(any()))
+                .thenThrow(HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", null, null, null));
+
+        mockMvc.perform(post("/generate-tests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "repoUrl": "https://github.com/example/repo/blob/main/openapi.yaml",
+                                  "language": "java"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.error.message").value("Swagger/OpenAPI file not found"));
+    }
+
+    @Test
+    void generateTestsRejectsUnsupportedMediaType() throws Exception {
+        mockMvc.perform(post("/generate-tests")
                         .contentType(MediaType.TEXT_PLAIN)
                         .content("repoUrl=https://github.com/example/repo/blob/main/openapi.yaml"))
                 .andExpect(status().isUnsupportedMediaType())

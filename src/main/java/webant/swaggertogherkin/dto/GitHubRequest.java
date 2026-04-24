@@ -1,6 +1,9 @@
 package webant.swaggertogherkin.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class GitHubRequest {
+    @JsonProperty(required = true)
     private String repoUrl;
     private String filePath;
     private String language;

@@ -1,7 +1,7 @@
 package webant.swaggertogherkin.service;
 
-import io.swagger.codegen.v3.DefaultGenerator;
-import io.swagger.codegen.v3.config.CodegenConfigurator;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.parser.OpenAPIV3Parser;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,11 +15,11 @@ import webant.swaggertogherkin.model.JobServiceType;
 import webant.swaggertogherkin.model.JobStatus;
 import webant.swaggertogherkin.util.GitHubContentFetcher;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -45,6 +45,7 @@ public class SwaggerTestGeneratorService {
     private final JobService jobService;
     private final ArtifactService artifactService;
     private final Path storageRoot;
+    private final OpenApiTestFileGenerator testFileGenerator = new OpenApiTestFileGenerator();
 
     public SwaggerTestGeneratorService(
             GitHubContentFetcher contentFetcher,
@@ -69,16 +70,18 @@ public class SwaggerTestGeneratorService {
             );
         }
 
+        String swaggerContent = contentFetcher.fetchContent(request.getRepoUrl(), request.getFilePath());
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("repoUrl", request.getRepoUrl());
+        payload.put("filePath", request.getFilePath());
+        payload.put("language", language);
+
         Job job = jobService.createJob(
                 JobServiceType.swagger_tests,
                 "Generate tests",
-                Map.of(
-                        "repoUrl", request.getRepoUrl(),
-                        "filePath", request.getFilePath(),
-                        "language", language
-                )
+                payload
         );
-        Thread.ofVirtual().start(() -> runGeneration(job.getId(), request, language));
+        Thread.ofVirtual().start(() -> runGeneration(job.getId(), swaggerContent, language));
         return job.getId().toString();
     }
 
@@ -129,15 +132,11 @@ public class SwaggerTestGeneratorService {
         return SUPPORTED_LANGUAGES;
     }
 
-    private void runGeneration(UUID jobId, GitHubRequest request, String language) {
-        Path tempFile = null;
+    private void runGeneration(UUID jobId, String swaggerContent, String language) {
         Path outputPath = null;
         try {
             jobService.markProcessing(jobId);
-            String swaggerContent = contentFetcher.fetchContent(request.getRepoUrl(), request.getFilePath());
-            tempFile = Files.createTempFile("swagger-", ".yaml");
-            Files.writeString(tempFile, swaggerContent);
-            outputPath = generateTests(tempFile.toFile(), language, jobId);
+            outputPath = generateTests(swaggerContent, language, jobId);
             Path archivePath = createArchive(outputPath, jobId);
             registerArtifacts(jobId, outputPath, archivePath);
             jobService.saveTestResult(jobId, Map.of(
@@ -148,8 +147,6 @@ public class SwaggerTestGeneratorService {
         } catch (Exception exception) {
             jobService.markFailed(jobId, exception.getMessage());
             deleteRecursively(outputPath);
-        } finally {
-            deleteRecursively(tempFile);
         }
     }
 
@@ -180,17 +177,19 @@ public class SwaggerTestGeneratorService {
         return language == null ? null : language.trim().toLowerCase();
     }
 
-    private Path generateTests(File swaggerFile, String language, UUID jobId) throws Exception {
+    private Path generateTests(String swaggerContent, String language, UUID jobId) throws IOException {
+        OpenAPI openAPI = new OpenAPIV3Parser().readContents(swaggerContent, null, null).getOpenAPI();
+        if (openAPI == null || openAPI.getPaths() == null || openAPI.getPaths().isEmpty()) {
+            throw new IllegalArgumentException("OpenAPI specification does not contain any paths");
+        }
+
         Path outputDir = storageRoot.resolve("jobs").resolve(jobId.toString()).resolve("generated-files");
         Files.createDirectories(outputDir);
-        CodegenConfigurator configurator = new CodegenConfigurator()
-                .setInputSpec(swaggerFile.getAbsolutePath())
-                .setLang(language)
-                .setOutputDir(outputDir.toString());
-
-        new DefaultGenerator()
-                .opts(configurator.toClientOptInput())
-                .generate();
+        for (Map.Entry<String, String> generatedFile : testFileGenerator.generate(openAPI, language).entrySet()) {
+            Path outputFile = outputDir.resolve(generatedFile.getKey()).normalize();
+            Files.createDirectories(outputFile.getParent());
+            Files.writeString(outputFile, generatedFile.getValue());
+        }
 
         return outputDir;
     }

@@ -119,15 +119,9 @@ paths:
           required: true
           schema:
             type: string
-          description: ID returned by POST /generate-tests
       responses:
         '200':
           description: Zip archive with generated tests
-          headers:
-            Content-Disposition:
-              description: Attachment filename for zip archive
-              schema:
-                type: string
           content:
             application/octet-stream:
               schema:
@@ -230,7 +224,7 @@ components:
         repoUrl:
           type: string
           description: GitHub raw URL, GitHub blob URL, or repository root URL.
-          example: https://github.com/ImOkey81/SwaggerToGherkin/blob/main/swagger.yaml
+          example: https://github.com/ImOkey81/ShadowPinger1/blob/main/openapi.yaml
         filePath:
           type: string
           nullable: true
@@ -251,7 +245,7 @@ components:
           example: success
         gherkin:
           type: string
-          example: "Feature: API scenarios for generate gherkin"
+          example: "Feature: CRUD scenarios for users"
     TestGenerationResponse:
       type: object
       required:
